@@ -2,8 +2,7 @@
 __*__
 .vscode
 #logging info
-log
-loginfo*.txt
+log*
 nohup.out
 # outputs 
 *output*
