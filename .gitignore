@@ -10,4 +10,6 @@ nohup.out
 # same as main train 
 main_continue.py
 # Jupyter checkpoint files
-*.ipynb_checkpoint
+*.ipynb*
+# unused scripts
+test*
