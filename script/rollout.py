@@ -1,3 +1,11 @@
+__author__ = "Keenan Manpearl"
+__date__ = "2023/1/24"
+
+"""
+original code by Xinqiang Ding <xqding@umich.edu>
+After training the model, we can try to use the model to do jumpy predictions.
+"""
+
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
@@ -8,12 +16,9 @@ import sys
 from model import *
 from prep_data import *
 
-""" After training the model, we can try to use the model to do
-jumpy predictions.
-"""
 
 #### load trained model
-checkpoint = torch.load("output/model_epoch_999.pt")
+checkpoint = torch.load("output/model_epoch_2899.pt")
 input_size = 784
 processed_x_size = 784
 belief_state_size = 50
@@ -41,12 +46,14 @@ images = images.cuda()
 
 ## calculate belief
 tdvae.forward(images)
+
 ## jumpy rollout
 t1, t2 = 11, 15
 rollout_images = tdvae.rollout(images, t1, t2)
 
 #### plot results
 fig = plt.figure(0, figsize = (12,4))
+
 fig.clf()
 gs = gridspec.GridSpec(batch_size,t2+2)
 gs.update(wspace = 0.05, hspace = 0.05)
@@ -63,7 +70,6 @@ for i in range(batch_size):
                     cmap = 'binary')
         axes.axis('off')
 
-out_file = "output/rollout_result.eps"
-fig.savefig(out_file)
+fig.savefig("./output/rollout_result.eps")
 plt.show()
 sys.exit()

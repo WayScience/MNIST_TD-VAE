@@ -1,3 +1,14 @@
+
 __*__
-./log/*
-*.pt*
+.vscode
+#logging info
+log
+loginfo*.txt
+nohup.out
+# outputs 
+*output*
+*model_*
+# same as main train 
+main_continue.py
+# Jupyter checkpoint files
+*.ipynb_checkpoint

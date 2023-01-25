@@ -1,54 +1,44 @@
-__author__ = "Xinqiang Ding <xqding@umich.edu>"
-__date__ = "2018/12/17 18:05:21"
+__author__ = "Keenan Manpearl"
+__date__ = "2023/1/24"
+
+"""
+original code by Xinqiang Ding <xqding@umich.edu>
+classes and functions needed to train model
+"""
 
 import numpy as np
 import torch
 import torch.nn as nn
 
 
-# nn.Module is a class
+
 class DBlock(nn.Module):
-    """ A basic building block for parametralize a normal distribution.
-    It is corresponding to the D operation in the reference Appendix.
-
-    we denote D the map from x to a normal distribution with mean μ(x) and 
-    log-standard deviation log σ(x)
-
-    We use the letter D for all such maps (even when they don’t 
-    share weights)
-
-    reparameterization trick: randomly sample ε from a unit Gaussian, 
-    and then shift the randomly sampled ε by the latent distribution's mean 
-    μ and scale it by the latent distribution's variance σ.
+    """ A basic building block for arameterizing a normal distribution.
+    It corresponds to the D operation in the reference Appendix.
     """
-
     def __init__(self, input_size, hidden_size, output_size):
         super(DBlock, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        # fc = fully connected layer 
+        # fc means "fully connected layer"
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(input_size, hidden_size)
         self.fc_mu = nn.Linear(hidden_size, output_size)
         self.fc_logsigma = nn.Linear(hidden_size, output_size)
-
+        
     def forward(self, input):
         t = torch.tanh(self.fc1(input))
         t = t * torch.sigmoid(self.fc2(input))
         mu = self.fc_mu(t)
         logsigma = self.fc_logsigma(t)
-        # when are these used? guessing internally by pytorch 
         return mu, logsigma
 
-
 class PreProcess(nn.Module):
-    """ The pre-process layer for MNIST image
-    Observations are pre-processed by a two hidden layer MLP
-    with ReLU nonlinearity
+    """ 
+    The pre-process layer for MNIST image
     """
-    
     def __init__(self, input_size, processed_x_size):
         super(PreProcess, self).__init__()
         self.input_size = input_size
@@ -56,68 +46,46 @@ class PreProcess(nn.Module):
         self.fc2 = nn.Linear(processed_x_size, processed_x_size)
 
     def forward(self, input):
-        # relu: piecewise linear function that will output the input
-        # directly if it is positive, otherwise, it will output zero
-
-        # default activation when developing multilayer Perceptron
-        # and convolutional neural networks
-
-        # easier to train and often achieves better performance
-
         t = torch.relu(self.fc1(input))
         t = torch.relu(self.fc2(t))
         return t
 
-
 class Decoder(nn.Module):
-    """ The decoder layer converting state to observation.
+    """ 
+    The decoder layer converting state to observation.
     Because the observation is MNIST image whose elements are values
     between 0 and 1, the output of this layer are probabilities of 
     elements being 1.
-
-    two layer MLP, which outputs the logits (log-odds function) 
-    of a Bernoulli distribution that represents probability values 
-    from 0 to 1 (limits values across X-axis)
     """
-
     def __init__(self, z_size, hidden_size, x_size):
         super(Decoder, self).__init__()
-
         self.fc1 = nn.Linear(z_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, x_size)
-
+        
     def forward(self, z):
         t = torch.tanh(self.fc1(z))
         t = torch.tanh(self.fc2(t))
         p = torch.sigmoid(self.fc3(t))
-        # probability that an element is 1
         return p
 
-
+    
 class TD_VAE(nn.Module):
-    """ The full TD_VAE model with jumpy prediction.
-
+    """ 
+    The full TD_VAE model with jumpy prediction.
     First, let's first go through some definitions which would help
     understanding what is going on in the following code.
-
-    Belief: As the model is feed a sequence of observations, x_t, the
-      model updates its belief state, b_t, through a LSTM network. It
-      is a deterministic function of x_t. We call b_t the belief at
-      time t instead of belief state, becuase we call the hidden state z
-      state.
-
-      Hidden state: stores the sequence of information up to time step
-      t-1 to be used as an input to the next step. Can only be computed
-      by looking at the previous time steps 
-
+    Belief: As the model is fed a sequence of observations, x_t, the
+      model updates its belief state, b_t, through a LSTM network. 
+      It is a deterministic function of x_t. 
+      We call b_t the belief attime t instead of belief state, 
+      because we call the hidden state z state.
+    
     State: The latent state variable, z.
-
-    Observation: The observated variable, x. In this case, it represents
-      binarized MNIST images
-
+    
+    Observation: The observed variable, x. 
+    In this case, it represents binarized MNIST images
     """
-
     def __init__(self, x_size, processed_x_size, b_size, z_size):
         super(TD_VAE, self).__init__()
         self.x_size = x_size
@@ -125,229 +93,174 @@ class TD_VAE(nn.Module):
         self.b_size = b_size
         self.z_size = z_size
 
-        # input pre-processing layer
+        ## input pre-process layer
         self.process_x = PreProcess(self.x_size, self.processed_x_size)
+        
+        ## one layer LSTM for aggregating belief states
+        ## One layer LSTM is used here and I am not sure how many layers
+        ## are used in the original paper
+        self.lstm = nn.LSTM(input_size = self.processed_x_size,
+                            hidden_size = self.b_size,
+                            batch_first = True)
 
-        # one layer LSTM for aggregating belief states
-        # One layer LSTM is used here and I am not sure how many layers
-        # are used in the original paper
+        ## Two layer state model is used
+        ## belief to state (b to z)
+        ## (this is corresponding to P_B distribution in the reference;
+        ## weights are shared across time but not across layers.)
+        self.l2_b_to_z = DBlock(b_size, 50, z_size) # layer 2
+        # TODO: input size is to clean, what does this mean?
+        self.l1_b_to_z = DBlock(b_size + z_size, 50, z_size) # layer 1
 
-        # batch_first – If True, then the input and output tensors
-        # are provided as (batch, seq, feature) instead of (seq, batch,
-        # feature)
-        self.lstm = nn.LSTM(input_size=self.processed_x_size,
-                            hidden_size=self.b_size,
-                            batch_first=True)
+        ## Given belief and state at time t2, infer the state at time t1
+        self.l2_infer_z = DBlock(b_size + 2*z_size, 50, z_size) # layer 2
+        self.l1_infer_z = DBlock(b_size + 2*z_size + z_size, 50, z_size) # layer 1
 
-        # Two layer state model is used. Sampling is done by sampling
-        # higher layer first.
-        # belief to state (b to z)
-
-        # (this is corresponding to probability of belief distribution in the
-        # reference; weights are shared across time but not across layers.)
-
-        # DBlock: parametralize a normal distribution
-        # input_size, hidden_size, output_size
-        # hidden layer size = 50 from original paper
-        # b_size = 8
-        # z_size = 50
-        self.l2_b_to_z = DBlock(b_size, 50, z_size)  # layer 2
-        ######### why does input size = b_size + z_size????
-        self.l1_b_to_z = DBlock(b_size + z_size, 50, z_size)  # layer 1
-
-        # Given belief and state at time t2, infer the state at
-        # time t1
-        ##### why input size?
-        self.l2_infer_z = DBlock(b_size + 2*z_size, 50, z_size)  # layer 2
-        self.l1_infer_z = DBlock(
-            b_size + 2*z_size + z_size, 50, z_size)  # layer 1
-
-        # Given the state at time t1, model state at time t2
-        # through state transition
-        # input_size = 16 (2*8), z_size (output) = 8
+        ## Given the state at time t1, model state at time t2 through state transition
         self.l2_transition_z = DBlock(2*z_size, 50, z_size)
-        # from model: input_size = 24 (2*8+8), hidden_size = 50, 
-        # (out_put) z_size = 8
         self.l1_transition_z = DBlock(2*z_size + z_size, 50, z_size)
 
-        # state to observation
-        # from model z_size = 16 (2*8), hidden_size = 200, x_size = 784
+        ## state to observation
         self.z_to_x = Decoder(2*z_size, 200, x_size)
 
-    def forward(self, images):
-        # batch size = number of rows 
+
+    def forward(self, images):        
         self.batch_size = images.size()[0]
         self.x = images
-        # pre-process image x
+        ## pre-precess image x
         self.processed_x = self.process_x(self.x)
 
-        ####### aggregate the belief b??
-        ###### what are h_n and c_n?
+        ## aggregate the belief b
+        # TODO: are h_n and c_n used internally by pytorch?
         self.b, (h_n, c_n) = self.lstm(self.processed_x)
-
+        
     def calculate_loss(self, t1, t2):
-        """ Calculate the jumpy VD-VAE loss, which is corresponding to
-        the equation (6) and equation (8) in the reference. 
+        """ 
+        Calculate the jumpy VD-VAE loss, which is corresponding to
+        the equation (6) and equation (8) in the reference.
         """
 
-        # Because the loss is based on variational inference, we need to
-        # draw samples from the variational distribution in order to
-        # estimate the loss function.
-
-        # sample a state at time t2 (see the reparameterization
-        # trick is used) z in layer 2
+        ## Because the loss is based on variational inference, we need to
+        ## draw samples from the variational distribution in order to estimate
+        ## the loss function.
+        
+        ## sample a state at time t2 (see the reparametralization trick is used)
+        ## z in layer 2
         t2_l2_z_mu, t2_l2_z_logsigma = self.l2_b_to_z(self.b[:, t2, :])
         t2_l2_z_epsilon = torch.randn_like(t2_l2_z_mu)
         t2_l2_z = t2_l2_z_mu + torch.exp(t2_l2_z_logsigma)*t2_l2_z_epsilon
 
-        # z in layer 1
+        ## z in layer 1
         t2_l1_z_mu, t2_l1_z_logsigma = self.l1_b_to_z(
-            torch.cat((self.b[:, t2, :], t2_l2_z), dim=-1))
+            torch.cat((self.b[:,t2,:], t2_l2_z),dim = -1))
         t2_l1_z_epsilon = torch.randn_like(t2_l1_z_mu)
         t2_l1_z = t2_l1_z_mu + torch.exp(t2_l1_z_logsigma)*t2_l1_z_epsilon
 
-        # concatenate z from layer 1 and layer 2
-        t2_z = torch.cat((t2_l1_z, t2_l2_z), dim=-1)
+        ## concatenate z from layer 1 and layer 2 
+        t2_z = torch.cat((t2_l1_z, t2_l2_z), dim = -1)
 
-        # sample a state at time t1
-        # infer state at time t1 based on states at time t2
+        ## sample a state at time t1
+        ## infer state at time t1 based on states at time t2
         t1_l2_qs_z_mu, t1_l2_qs_z_logsigma = self.l2_infer_z(
-            torch.cat((self.b[:, t1, :], t2_z), dim=-1))
+            torch.cat((self.b[:,t1,:], t2_z), dim = -1))
         t1_l2_qs_z_epsilon = torch.randn_like(t1_l2_qs_z_mu)
-        t1_l2_qs_z = t1_l2_qs_z_mu + \
-            torch.exp(t1_l2_qs_z_logsigma)*t1_l2_qs_z_epsilon
+        t1_l2_qs_z = t1_l2_qs_z_mu + torch.exp(t1_l2_qs_z_logsigma)*t1_l2_qs_z_epsilon
 
         t1_l1_qs_z_mu, t1_l1_qs_z_logsigma = self.l1_infer_z(
-            torch.cat((self.b[:, t1, :], t2_z, t1_l2_qs_z), dim=-1))
+            torch.cat((self.b[:,t1,:], t2_z, t1_l2_qs_z), dim = -1))
         t1_l1_qs_z_epsilon = torch.randn_like(t1_l1_qs_z_mu)
-        t1_l1_qs_z = t1_l1_qs_z_mu + \
-            torch.exp(t1_l1_qs_z_logsigma)*t1_l1_qs_z_epsilon
+        t1_l1_qs_z = t1_l1_qs_z_mu + torch.exp(t1_l1_qs_z_logsigma)*t1_l1_qs_z_epsilon
 
-        t1_qs_z = torch.cat((t1_l1_qs_z, t1_l2_qs_z), dim=-1)
+        t1_qs_z = torch.cat((t1_l1_qs_z, t1_l2_qs_z), dim = -1)
 
-        # After sampling states z from the variational distribution
-        # we can calculate the loss.
+        #### After sampling states z from the variational distribution, we can calculate
+        #### the loss.
 
-        # state distribution at time t1 based on belief at time 1
-        # l2_b_to_z = DBlock(b_size, 50, z_size)  # layer 2
-        t1_l2_pb_z_mu, t1_l2_pb_z_logsigma = self.l2_b_to_z(self.b[:, t1, :])
+        ## state distribution at time t1 based on belief at time 1
+        t1_l2_pb_z_mu, t1_l2_pb_z_logsigma = self.l2_b_to_z(self.b[:, t1, :])        
         t1_l1_pb_z_mu, t1_l1_pb_z_logsigma = self.l1_b_to_z(
-            torch.cat((self.b[:, t1, :], t1_l2_qs_z), dim=-1))
+            torch.cat((self.b[:,t1,:], t1_l2_qs_z),dim = -1))
 
-        # state distribution at time t2 based on states at time t1 and state transition
+        ## state distribution at time t2 based on states at time t1 and state transition
         t2_l2_t_z_mu, t2_l2_t_z_logsigma = self.l2_transition_z(t1_qs_z)
         t2_l1_t_z_mu, t2_l1_t_z_logsigma = self.l1_transition_z(
-            torch.cat((t1_qs_z, t2_l2_z), dim=-1))
-
-        # observation distribution at time t2 based on state at time t2
+            torch.cat((t1_qs_z, t2_l2_z), dim = -1))
+        
+        ## observation distribution at time t2 based on state at time t2
         t2_x_prob = self.z_to_x(t2_z)
 
-        # start calculating the loss
+        #### start calculating the loss
 
-        # KL divergence between z distribution at time t1 
-        # based on variational distribution (inference model) 
-        # and z distribution at time t1 based on belief.
-        # This divergence is between two normal distributions 
+        #### KL divergence between z distribution at time t1 based on variational 
+        #### distribution (inference model) and z distribution at time t1 based on belief.
+        #### This divergence is between two normal distributions and it can be 
+        #### calculated analytically
+        
+        ## KL divergence between t1_l2_pb_z, and t1_l2_qs_z
+        loss = 0.5*torch.sum(((t1_l2_pb_z_mu - t1_l2_qs_z)/torch.exp(t1_l2_pb_z_logsigma))**2,-1) + \
+               torch.sum(t1_l2_pb_z_logsigma, -1) - torch.sum(t1_l2_qs_z_logsigma, -1)
 
-        # KL divergence between t1_l2_pb_z, and t1_l2_qs_z
-        loss = 0.5*torch.sum(((t1_l2_pb_z_mu - t1_l2_qs_z)/torch.exp(t1_l2_pb_z_logsigma))**2, -1) + \
-            torch.sum(t1_l2_pb_z_logsigma, -1) - \
-            torch.sum(t1_l2_qs_z_logsigma, -1)
+        ## KL divergence between t1_l1_pb_z and t1_l1_qs_z
+        loss += 0.5*torch.sum(((t1_l1_pb_z_mu - t1_l1_qs_z)/torch.exp(t1_l1_pb_z_logsigma))**2,-1) + \
+               torch.sum(t1_l1_pb_z_logsigma, -1) - torch.sum(t1_l1_qs_z_logsigma, -1)
+        
+        #### The following four terms estimate the KL divergence between 
+        #### the z distribution at time t2 based on variational distribution 
+        #### (inference model) and z distribution at time t2 based on transition.
+        #### In contrast with the above KL divergence for z distribution at time t1, 
+        #### this KL divergence can not be calculated analytically because 
+        #### the transition distribution depends on z_t1, which is sampled after z_t2. 
+        #### Therefore, the KL divergence is estimated using samples
+        
+        ## state log probability at time t2 based on belief
+        loss += torch.sum(-0.5*t2_l2_z_epsilon**2 - 0.5*t2_l2_z_epsilon.new_tensor(2*np.pi) - t2_l2_z_logsigma, dim = -1) 
+        loss += torch.sum(-0.5*t2_l1_z_epsilon**2 - 0.5*t2_l1_z_epsilon.new_tensor(2*np.pi) - t2_l1_z_logsigma, dim = -1)
 
-        # KL divergence between t1_l1_pb_z and t1_l1_qs_z
-        loss += 0.5*torch.sum(((t1_l1_pb_z_mu - t1_l1_qs_z)/torch.exp(t1_l1_pb_z_logsigma))**2, -1) + \
-            torch.sum(t1_l1_pb_z_logsigma, -1) - \
-            torch.sum(t1_l1_qs_z_logsigma, -1)
+        ## state log probability at time t2 based on transition
+        loss += torch.sum(0.5*((t2_l2_z - t2_l2_t_z_mu)/torch.exp(t2_l2_t_z_logsigma))**2 + 0.5*t2_l2_z.new_tensor(2*np.pi) + t2_l2_t_z_logsigma, -1)
+        loss += torch.sum(0.5*((t2_l1_z - t2_l1_t_z_mu)/torch.exp(t2_l1_t_z_logsigma))**2 + 0.5*t2_l1_z.new_tensor(2*np.pi) + t2_l1_t_z_logsigma, -1)
 
-        # The following four terms estimate the KL divergence 
-        # between the z distribution at time t2
-        # based on variational distribution (inference model) 
-        # and z distribution at time t2 based on transition.
-        # In contrast with the above KL divergence for 
-        # z distribution at time t1, this KL divergence
-        # can not be calculated analytically because 
-        # the transition distribution depends on z_t1, which is sampled
-        # after z_t2. Therefore, the KL divergence is 
-        # estimated using samples
-
-        # state log probabilty at time t2 based on belief
-        ########## why .new_tensor??
-        # Returns a new Tensor with data as the tensor data
-        # new_tensor() always copies data
-        # is this multiplying epsilon by 2*pi?
- 
-        loss += torch.sum(-0.5*t2_l2_z_epsilon**2 - 0.5 *
-                          t2_l2_z_epsilon.new_tensor(2*np.pi) - t2_l2_z_logsigma, dim=-1)
-        loss += torch.sum(-0.5*t2_l1_z_epsilon**2 - 0.5 *
-                          t2_l1_z_epsilon.new_tensor(2*np.pi) - t2_l1_z_logsigma, dim=-1)
-
-        # state log probabilty at time t2 based on transition
-        loss += torch.sum(0.5*((t2_l2_z - t2_l2_t_z_mu)/torch.exp(t2_l2_t_z_logsigma))
-                          ** 2 + 0.5*t2_l2_z.new_tensor(2*np.pi) + t2_l2_t_z_logsigma, -1)
-        loss += torch.sum(0.5*((t2_l1_z - t2_l1_t_z_mu)/torch.exp(t2_l1_t_z_logsigma))
-                          ** 2 + 0.5*t2_l1_z.new_tensor(2*np.pi) + t2_l1_t_z_logsigma, -1)
-
-        # observation prob at time t2
-        loss += -torch.sum(self.x[:, t2, :]*torch.log(t2_x_prob) +
-                           (1-self.x[:, t2, :])*torch.log(1-t2_x_prob), -1)
+        
+        ## observation prob at time t2
+        loss += -torch.sum(self.x[:,t2,:]*torch.log(t2_x_prob) + (1-self.x[:,t2,:])*torch.log(1-t2_x_prob), -1)
         loss = torch.mean(loss)
-
+        
         return loss
 
     def rollout(self, images, t1, t2):
-        # to make jumpy predictions
-
         self.forward(images)
-
-        # at time t1-1, we sample a state z based on belief at time t1-1
-        # self.l2_b_to_z = DBlock(b_size, 50, z_size) # layer 2
-        l2_z_mu, l2_z_logsigma = self.l2_b_to_z(self.b[:, t1-1, :])
-        # torch.randn_like creates a tensor of rand numbers
-        # with mean 0 and variance 1 and same dimensions as input
-        ####### why do this? 
+        
+        ## at time t1-1, we sample a state z based on belief at time t1-1
+        l2_z_mu, l2_z_logsigma = self.l2_b_to_z(self.b[:,t1-1,:])
         l2_z_epsilon = torch.randn_like(l2_z_mu)
-        # torch.exp Returns a new tensor with the
-        # exponential of the elements of the input tensor
         l2_z = l2_z_mu + torch.exp(l2_z_logsigma)*l2_z_epsilon
 
-        # self.l1_b_to_z = DBlock(b_size + z_size, 50, z_size) # layer 1
         l1_z_mu, l1_z_logsigma = self.l1_b_to_z(
-            torch.cat((self.b[:, t1-1, :], l2_z), dim=-1))
+            torch.cat((self.b[:,t1-1,:], l2_z), dim = -1))
         l1_z_epsilon = torch.randn_like(l1_z_mu)
         l1_z = l1_z_mu + torch.exp(l1_z_logsigma)*l1_z_epsilon
-        # Concatenates the given sequence of seq tensors in the given dimension 
-        ###### what is -1?? Taking away a dimension?
-        current_z = torch.cat((l1_z, l2_z), dim=-1)
-
+        current_z = torch.cat((l1_z, l2_z), dim = -1)                        
+        
         rollout_x = []
 
         for k in range(t2 - t1 + 1):
-            # predicting states after time t1 using state transition
-            # self.l2_transition_z = DBlock(2*z_size, 50, z_size)
+            ## predicting states after time t1 using state transition        
             next_l2_z_mu, next_l2_z_logsigma = self.l2_transition_z(current_z)
             next_l2_z_epsilon = torch.randn_like(next_l2_z_mu)
-            next_l2_z = next_l2_z_mu + \
-                torch.exp(next_l2_z_logsigma)*next_l2_z_epsilon
+            next_l2_z = next_l2_z_mu + torch.exp(next_l2_z_logsigma)*next_l2_z_epsilon
+            
+            next_l1_z_mu, next_l1_z_logsigma  = self.l1_transition_z(
+                torch.cat((current_z, next_l2_z), dim = -1))
+            next_l1_z_epsilon = torch.randn_like(next_l1_z_mu)        
+            next_l1_z = next_l1_z_mu + torch.exp(next_l1_z_logsigma)*next_l1_z_epsilon
 
-            # self.l1_transition_z = DBlock(2*z_size + z_size, 50, z_size)
-            next_l1_z_mu, next_l1_z_logsigma = self.l1_transition_z(
-                torch.cat((current_z, next_l2_z), dim=-1))
-            next_l1_z_epsilon = torch.randn_like(next_l1_z_mu)
-            next_l1_z = next_l1_z_mu + \
-                torch.exp(next_l1_z_logsigma)*next_l1_z_epsilon
+            next_z = torch.cat((next_l1_z, next_l2_z), dim = -1)
 
-            next_z = torch.cat((next_l1_z, next_l2_z), dim=-1)
-
-            # generate an observation x_t1 at time t1
-            # based on sampled state z_t1
-            # self.z_to_x = Decoder(2*z_size, 200, x_size)
-            # Decoder = z_size, hidden_size, x_size
+            ## generate an observation x_t1 at time t1 based on sampled state z_t1
             next_x = self.z_to_x(next_z)
             rollout_x.append(next_x)
 
             current_z = next_z
 
-        # Concatenates a sequence of tensors along a new dimension
-        rollout_x = torch.stack(rollout_x, dim=1)
-
+        rollout_x = torch.stack(rollout_x, dim = 1)
+        
         return rollout_x
