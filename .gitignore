@@ -1,2 +1,15 @@
-__*__
-./log/*
+*pycache*
+.vscode
+# logging info
+loginfo*.txt
+nohup.out
+# outputs 
+*output*
+# same as main train 
+main_continue.py
+# unused
+test.py
+# images
+torchview*
+# data
+*pkl
