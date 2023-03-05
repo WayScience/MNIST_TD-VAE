@@ -5,12 +5,21 @@ __date__ = "2023/1/24"
 original code by Xinqiang Ding <xqding@umich.edu>
 train the model
 """
+__author__ = "Keenan Manpearl"
+__date__ = "2023/1/24"
 
+"""
+original code by Xinqiang Ding <xqding@umich.edu>
+train the model
+"""
+
+import pathlib
 import pathlib
 import pickle
 import numpy as np
 import torch
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from torch.utils.data import DataLoader
 from model import *
 from prep_data import *
@@ -29,6 +38,8 @@ batch_size = 512
 num_epoch = 1
 learning_rate = 0.0005
 
+# Prepare dataset
+with open(data_file, "rb") as file_handle:
 # Prepare dataset
 with open(data_file, "rb") as file_handle:
     MNIST = pickle.load(file_handle)
