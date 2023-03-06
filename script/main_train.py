@@ -5,12 +5,21 @@ __date__ = "2023/1/24"
 original code by Xinqiang Ding <xqding@umich.edu>
 train the model
 """
+__author__ = "Keenan Manpearl"
+__date__ = "2023/1/24"
 
+"""
+original code by Xinqiang Ding <xqding@umich.edu>
+train the model
+"""
+
+import pathlib
 import pathlib
 import pickle
 import numpy as np
 import torch
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from torch.utils.data import DataLoader
 from model import *
 from prep_data import *
@@ -26,7 +35,7 @@ time_jump_options = [1, 2, 3, 4]  # Jump up to 4 frames away
 
 # Set hyperparameters
 batch_size = 512
-num_epoch = 6000
+num_epoch = 1
 learning_rate = 0.0005
 
 # Prepare dataset
@@ -34,6 +43,7 @@ with open(data_file, "rb") as file_handle:
     MNIST = pickle.load(file_handle)
 
 data = MNIST_Dataset(MNIST["train_image"])
+
 # second most important for overall performance
 # mini batch gradient descent
 # default method for implementing gradient descent in deep learning
@@ -76,20 +86,24 @@ with open(log_file, "w") as log_file_handle:
             images = images.cuda()
 
             # Make a forward step of preprocessing and LSTM
-            tdvae.forward(images)
-
+            b = tdvae.forward(images)
+            print('b = ', b)
+            print(b.shape)
             # Randomly sample a time step and jumpy step
             t_1 = np.random.choice(time_constant_max)
             t_2 = t_1 + np.random.choice(time_jump_options)
 
             # Calculate loss function based on two time points
-            loss = tdvae.calculate_loss(t_1, t_2)
+            loss, t1_z, t2_z = tdvae.calculate_loss(t_1, t_2)
+            print('t1_z = ', t1_z)
+            print('t2_z = ', t2_z)
+            print('difference = ', sum(np.abs(t1_z.cpu().detach().numpy() - t2_z.cpu().detach().numpy())[:] != 0))
 
             # must clear out stored gradient
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
@@ -97,13 +111,14 @@ with open(log_file, "w") as log_file_handle:
                 file=log_file_handle,
                 flush=True,
             )
-
+           
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 )
             )
 
+     
         if (epoch + 1) % 50 == 0:
             torch.save(
                 {
@@ -114,39 +129,7 @@ with open(log_file, "w") as log_file_handle:
                 },
                 f"./output/model_epoch_{epoch}.pt",
             )
-
-            # Calculate loss function based on two time points
-            loss = tdvae.calculate_loss(t_1, t_2)
-
-            # must clear out stored gradient
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            print(
-                "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
-                    epoch, idx, loss.item()
-                ),
-                file=log_file_handle,
-                flush=True,
-            )
-
-            print(
-                "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
-                    epoch, idx, loss.item()
-                )
-            )
-
-        if (epoch + 1) % 50 == 0:
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": tdvae.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": loss,
-                },
-                f"./output/model_epoch_{epoch}.pt",
-            )
+     
 
 '''
 # info about the model

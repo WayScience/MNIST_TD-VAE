@@ -77,4 +77,5 @@ class MNIST_Dataset(Dataset):
                 image_list.append(image.reshape(-1))
 
         image_seq = np.array(image_list)
+        print(image_seq.shape)
         return image_seq

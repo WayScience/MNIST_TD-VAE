@@ -1,18 +1,15 @@
-__pycache__/
+*pycache*
 .vscode
-#logging info
-log
+# logging info
 loginfo*.txt
-__*__
 nohup.out
 # outputs 
 *output*
-model2.py
 # same as main train 
-main_continue.py
-# Jupyter checkpoint files
-*.ipynb*
-# unused scripts
-test*
+script/main_continue.py
+# unused
+test.py
+# images
 torchview*
+# data
 *pkl

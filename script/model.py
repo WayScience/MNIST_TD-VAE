@@ -12,12 +12,14 @@ import torch.nn as nn
 
 
 class DBlock(nn.Module):
-    """A basic building block for parameterizing a normal distribution.
+    """
+    A basic building block for parameterizing a normal distribution.
     It corresponds to the D operation in the reference Appendix.
 
     Returns a mean and log sigma for any arbitrary context X
     [mu, log_sigma] = W3*tanh(W1*x + B1)*sigmoid(W2*x + B2) + B3
     """
+
 
     def __init__(self, input_size, hidden_size, output_size):
         super(DBlock, self).__init__()
@@ -41,10 +43,13 @@ class DBlock(nn.Module):
         return mu, logsigma
 
 
+
 class PreProcess(nn.Module):
-    """
+
+    '''
     The pre-process layer for MNIST image
-    """
+    '''
+
 
     def __init__(self, input_size, processed_x_size):
         super(PreProcess, self).__init__()
@@ -59,12 +64,14 @@ class PreProcess(nn.Module):
 
 
 class Decoder(nn.Module):
-    """
+
+    '''   
     The decoder layer converting state to observation.
     Because the observation is MNIST image whose elements are values
     between 0 and 1, the output of this layer are probabilities of
+    between 0 and 1, the output of this layer are probabilities of
     elements being 1.
-    """
+    '''
 
     def __init__(self, z_size, hidden_size, x_size):
         super(Decoder, self).__init__()
@@ -79,17 +86,11 @@ class Decoder(nn.Module):
         return p
 
 
+
 class TD_VAE(nn.Module):
     """
-    The full TD_VAE model.
+    The full TD_VAE model.    
 
-    -------------------
-    First, let's first go through some definitions which would help understanding what is going
-    on in the following code.
-    Belief: As the model is fed a sequence of observations, x_t, the model updates its belief
-        state, b_t, through an LSTM network. It is a deterministic function of x_t.
-
-    -------------------
     First, let's first go through some definitions which would help understanding what is going
     on in the following code.
 
@@ -98,12 +99,6 @@ class TD_VAE(nn.Module):
     State: The latent state variable, z.
     Observation: The observed variable, x.
 
-    -------------------
-    The TD_VAE contains several interconnected layers, which all have different purposes.
-    We provide more details on each layer below, but, in summary, the layers are as follows:
-
-
-    -------------------
     The TD_VAE contains several interconnected layers, which all have different purposes.
     We provide more details on each layer below, but, in summary, the layers are as follows:
 
@@ -118,7 +113,6 @@ class TD_VAE(nn.Module):
     6) The decoder network. This layer will learn how to reverse the compression process and convert z
         back to the original input dimensions X
 
-    -------------------
     The TD-VAE model learns by minimizing reconstruction loss (reconstructing compressed belief state
     back to original X dimensions) and mimizing two distinct KL divergence terms. To describe these terms,
     it is helpful to realize that there are three ways to arrive at a compressed representation z.
@@ -137,9 +131,12 @@ class TD_VAE(nn.Module):
 
             loss = ||X - decoder(P_B(X))|| + KL( P_B | q_s ) + KL( P_B | P_T )
 
-    -------------------
     We are primarily interested in two aspects of this model.
 
+    1) We would like to be able to predict future states of the world, perhaps from static images.
+    2) We would like to explore the encoded representation z formed from the belief state encoder.
+    We will compare z across different contexts, which will tell us how different contexts impact
+    behavior in the world over time.
     1) We would like to be able to predict future states of the world, perhaps from static images.
     2) We would like to explore the encoded representation z formed from the belief state encoder.
     We will compare z across different contexts, which will tell us how different contexts impact
@@ -155,6 +152,7 @@ class TD_VAE(nn.Module):
         d_block_hidden_size,
         decoder_hidden_size,
     ):
+
         super(TD_VAE, self).__init__()
         self.x_size = x_size
         self.processed_x_size = processed_x_size
@@ -302,10 +300,13 @@ class TD_VAE(nn.Module):
         self.x = images
 
         # Pre-precess image x
+
+        # Pre-precess image x
         self.processed_x = self.process_x(self.x)
 
         # Aggregate the belief b - the model only uses b in subsequent steps
         self.b, (self.h_n, self.c_n) = self.lstm(self.processed_x)
+        return(self.b)
 
     def calculate_loss(self, t1, t2):
         """
@@ -349,9 +350,9 @@ class TD_VAE(nn.Module):
             dimensions as X. We minimize the difference between this decoded X and the ground truth X. Importantly,
             with this decoder we can now fully simulate new data in the original dimension. 
 
-                This term fully enables data generation (original dimension).
-        """
-
+            This term fully enables data generation in the orginal input dimensions X
+       """
+        
         ############################
         # Prior to calculating the loss, sample from the previously defined layers.
         # We will use these layers in subsequent components of the loss function.
@@ -383,10 +384,14 @@ class TD_VAE(nn.Module):
             z_time2_layer1_mu
             + torch.exp(z_time2_layer1_logsigma) * z_time2_layer2_epsilon
         )
+        z_time2_layer1 = (
+            z_time2_layer1_mu
+            + torch.exp(z_time2_layer1_logsigma) * z_time2_layer2_epsilon
+        )
 
         # Concatenate z from layer 1 and layer 2
         z_time2 = torch.cat((z_time2_layer1, z_time2_layer2), dim=-1)
-
+        
         # 2) Imagine z at time 1 given belief at time 1 and z at time 2 (hallucinate z_time1)
         # This is the smoothing distribution (q_s)
         (
@@ -414,7 +419,6 @@ class TD_VAE(nn.Module):
             + torch.exp(z_time1_layer1_smoothing_logsigma)
             * z_time1_layer1_smoothing_epsilon
         )
-
         z_time1_smoothing = torch.cat(
             (z_time1_layer1_smoothing, z_time1_layer2_smoothing), dim=-1
         )
@@ -432,6 +436,7 @@ class TD_VAE(nn.Module):
         ) = self.encoder_b_to_z_layer1(
             torch.cat((self.b[:, t1, :], z_time1_layer2_smoothing), dim=-1)
         )  # Note, only use layer 2 smoothing here as a bottleneck to not encode too much information
+
 
         # 4) Forward pass of how the world evolves
         # This is the transition distribution (P_T)
@@ -465,6 +470,8 @@ class TD_VAE(nn.Module):
         # 5) Minimize the difference between decoder and ground truth observation (reconstruction)
         #
         # We will walk through calculating each of these five components.
+
+
         ############################
 
         # 1) KL divergence between belief distribution at time 1 and smoothing distribution at time 1
@@ -541,7 +548,7 @@ class TD_VAE(nn.Module):
             - z_time2_layer1_logsigma,
             dim=-1,
         )
-
+    
         # Note that we're subtracting the previous sampling from this KL term
         loss_kl_belief_transition_z_time2_layer1 += torch.sum(
             0.5
@@ -571,9 +578,10 @@ class TD_VAE(nn.Module):
             + loss_kl_belief_transition_z_time2_layer1
             + reconstruction_loss
         )
+        
         loss = torch.mean(loss)
 
-        return loss
+        return loss, z_time1_smoothing, z_time2
 
     def rollout(self, images, t1, t2):
         # Preprocess images and pass through LSTM
@@ -601,13 +609,14 @@ class TD_VAE(nn.Module):
                 predict_z_layer2_mu,
                 predict_z_layer2_logsigma,
             ) = self.transition_z_layer2(z)
+
             predict_z_layer2_epsilon = torch.randn_like(predict_z_layer2_mu)
+
             predict_z_layer2 = (
                 predict_z_layer2_mu
                 + torch.exp(predict_z_layer2_logsigma) * predict_z_layer2_epsilon
             )
-
-            predict_z_layer1_mu, predict_z_layer1_logsigma = self.l1_transition_z(
+            predict_z_layer1_mu, predict_z_layer1_logsigma = self.transition_z_layer1(
                 torch.cat((z, predict_z_layer2), dim=-1)
             )
             predict_z_layer1_epsilon = torch.randn_like(predict_z_layer1_mu)
@@ -622,7 +631,6 @@ class TD_VAE(nn.Module):
             predict_x = self.decoder_z_to_x(predict_z)
             rollout_x.append(predict_x)
 
-
             z = predict_z
 
-        return rollout_x
+        return torch.stack(rollout_x, dim = 1)
