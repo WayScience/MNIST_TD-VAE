@@ -6,7 +6,7 @@ nohup.out
 # outputs 
 *output*
 # same as main train 
-main_continue.py
+script/main_continue.py
 # unused
 test.py
 # images
