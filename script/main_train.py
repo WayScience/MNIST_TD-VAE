@@ -103,22 +103,22 @@ with open(log_file, "w") as log_file_handle:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            ''' 
-           print(
+            
+            print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 ),
                 file=log_file_handle,
                 flush=True,
             )
-            '''
+           
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 )
             )
 
-        '''
+     
         if (epoch + 1) % 50 == 0:
             torch.save(
                 {
@@ -129,7 +129,7 @@ with open(log_file, "w") as log_file_handle:
                 },
                 f"./output/model_epoch_{epoch}.pt",
             )
-        '''
+     
 
 '''
 # info about the model
