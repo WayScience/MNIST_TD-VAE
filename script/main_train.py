@@ -40,8 +40,6 @@ learning_rate = 0.0005
 
 # Prepare dataset
 with open(data_file, "rb") as file_handle:
-# Prepare dataset
-with open(data_file, "rb") as file_handle:
     MNIST = pickle.load(file_handle)
 
 data = MNIST_Dataset(MNIST["train_image"])
@@ -88,34 +86,39 @@ with open(log_file, "w") as log_file_handle:
             images = images.cuda()
 
             # Make a forward step of preprocessing and LSTM
-            tdvae.forward(images)
-
+            b = tdvae.forward(images)
+            print('b = ', b)
+            print(b.shape)
             # Randomly sample a time step and jumpy step
             t_1 = np.random.choice(time_constant_max)
             t_2 = t_1 + np.random.choice(time_jump_options)
 
             # Calculate loss function based on two time points
-            loss = tdvae.calculate_loss(t_1, t_2)
+            loss, t1_z, t2_z = tdvae.calculate_loss(t_1, t_2)
+            print('t1_z = ', t1_z)
+            print('t2_z = ', t2_z)
+            print('difference = ', sum(np.abs(t1_z.cpu().detach().numpy() - t2_z.cpu().detach().numpy())[:] != 0))
 
             # must clear out stored gradient
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
-            print(
+            ''' 
+           print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 ),
                 file=log_file_handle,
                 flush=True,
             )
-
+            '''
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 )
             )
 
+        '''
         if (epoch + 1) % 50 == 0:
             torch.save(
                 {
@@ -126,39 +129,7 @@ with open(log_file, "w") as log_file_handle:
                 },
                 f"./output/model_epoch_{epoch}.pt",
             )
-
-            # Calculate loss function based on two time points
-            loss = tdvae.calculate_loss(t_1, t_2)
-
-            # must clear out stored gradient
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            print(
-                "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
-                    epoch, idx, loss.item()
-                ),
-                file=log_file_handle,
-                flush=True,
-            )
-
-            print(
-                "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
-                    epoch, idx, loss.item()
-                )
-            )
-
-        if (epoch + 1) % 50 == 0:
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": tdvae.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": loss,
-                },
-                f"./output/model_epoch_{epoch}.pt",
-            )
+        '''
 
 '''
 # info about the model
