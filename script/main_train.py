@@ -14,19 +14,17 @@ train the model
 """
 
 import pathlib
-import pathlib
 import pickle
 import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.utils.data import DataLoader
 from model import *
 from prep_data import *
 
 # Set paths
-data_file = "MNIST.pkl"
-log_file = pathlib.Path("loginfo.txt")
+data_file = "data/MNIST.pkl"
+log_file = pathlib.Path("log_info.txt")
 
 # Set constants
 time_constant_max = 16  # There are 20 frames total
@@ -35,7 +33,7 @@ time_jump_options = [1, 2, 3, 4]  # Jump up to 4 frames away
 
 # Set hyperparameters
 batch_size = 512
-num_epoch = 1
+num_epoch = 6000
 learning_rate = 0.0005
 
 # Prepare dataset
@@ -84,21 +82,13 @@ with open(log_file, "w") as log_file_handle:
     for epoch in range(num_epoch):
         for idx, images in enumerate(data_loader):
             images = images.cuda()
-
             # Make a forward step of preprocessing and LSTM
-            b = tdvae.forward(images)
-            print('b = ', b)
-            print(b.shape)
+            tdvae.forward(images)
             # Randomly sample a time step and jumpy step
             t_1 = np.random.choice(time_constant_max)
             t_2 = t_1 + np.random.choice(time_jump_options)
-
             # Calculate loss function based on two time points
-            loss, t1_z, t2_z = tdvae.calculate_loss(t_1, t_2)
-            print('t1_z = ', t1_z)
-            print('t2_z = ', t2_z)
-            print('difference = ', sum(np.abs(t1_z.cpu().detach().numpy() - t2_z.cpu().detach().numpy())[:] != 0))
-
+            loss= tdvae.calculate_loss(t_1, t_2)
             # must clear out stored gradient
             optimizer.zero_grad()
             loss.backward()
@@ -119,7 +109,7 @@ with open(log_file, "w") as log_file_handle:
             )
 
      
-        if (epoch + 1) % 50 == 0:
+        if (epoch) % 50 == 0:
             torch.save(
                 {
                     "epoch": epoch,
@@ -127,7 +117,7 @@ with open(log_file, "w") as log_file_handle:
                     "optimizer_state_dict": optimizer.state_dict(),
                     "loss": loss,
                 },
-                f"./output/model_epoch_{epoch}.pt",
+                f"./output_epochs/epoch_{epoch}.pt",
             )
      
 

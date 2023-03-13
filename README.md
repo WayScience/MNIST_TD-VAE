@@ -12,7 +12,10 @@ TD-VAE is designed to have the following three features:
 Here, based on the information disclosed in the paper, we reproduce the experiment about moving MNIST digits. 
 In this experiment, a sequence of a MNIST digit moving to the left or the right direction is presented to the model. 
 The model predicts how the digit moves in subsequent steps. 
-After training the model, we can feed a sequence of digits into the model and see how well it can predict the future. 
+After training the model, we can feed a sequence of digits into the model and see how well it can predict the future.
+We can also extract a latent representation of each time point to identify time signatures. 
 
 Here is the result.
 ![Figure](./output/rollout_result.png)
+
+

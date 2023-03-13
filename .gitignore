@@ -1,15 +1,11 @@
 *pycache*
 .vscode
 # logging info
-loginfo*.txt
+*.txt
 nohup.out
 # outputs 
 *output*
 # same as main train 
 script/main_continue.py
-# unused
-test.py
-# images
-torchview*
 # data
 *pkl

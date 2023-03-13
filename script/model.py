@@ -306,7 +306,6 @@ class TD_VAE(nn.Module):
 
         # Aggregate the belief b - the model only uses b in subsequent steps
         self.b, (self.h_n, self.c_n) = self.lstm(self.processed_x)
-        return(self.b)
 
     def calculate_loss(self, t1, t2):
         """
@@ -581,7 +580,7 @@ class TD_VAE(nn.Module):
         
         loss = torch.mean(loss)
 
-        return loss, z_time1_smoothing, z_time2
+        return loss
 
     def rollout(self, images, t1, t2):
         # Preprocess images and pass through LSTM
@@ -634,3 +633,26 @@ class TD_VAE(nn.Module):
             z = predict_z
 
         return torch.stack(rollout_x, dim = 1)
+    
+def extract_latent_space(self, images, time):
+        z_values = []
+        # Preprocess images and pass through LSTM
+        self.forward(images)
+        for t in range(time):
+            # At time t1-1, we encode a state z based on belief at time t1-1
+            z_layer2_mu, z_layer2_logsigma = self.encoder_b_to_z_layer2(
+                self.b[:, t, :]
+            )
+            z_layer2_epsilon = torch.randn_like(z_layer2_mu)
+            z_layer2 = z_layer2_mu + torch.exp(z_layer2_logsigma) * z_layer2_epsilon
+
+            z_layer1_mu, z_layer1_logsigma = self.encoder_b_to_z_layer1(
+                torch.cat((self.b[:, t, :], z_layer2), dim=-1)
+            )
+            z_layer1_epsilon = torch.randn_like(z_layer1_mu)
+            z_layer1 = z_layer1_mu + torch.exp(z_layer1_logsigma) * z_layer1_epsilon
+
+            z = torch.cat((z_layer1, z_layer2), dim=-1)
+            z_values.append(z.cpu().detach().numpy())
+
+        return(z_values)
