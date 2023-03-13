@@ -6,6 +6,7 @@ extract z-values from a trained model
 """
 
 import pickle
+import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -15,11 +16,11 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("./"))
-from prep_data import Mitocheck_Dataset
+from prep_data import MNIST_Dataset
 from model import TD_VAE, DBlock, PreProcess, Decoder
 
 #### load trained model
-checkpoint = torch.load("output/compression10_epoch_49.pt")
+checkpoint = torch.load("output_epochs/epoch_0.pt")
 input_size = 784
 processed_x_size = 784
 belief_state_size = 50
@@ -27,6 +28,7 @@ state_size = 8
 d_block_hidden_size = 50
 decoder_hidden_size = 200
 time_points = 20
+batch_size = 512
 
 tdvae = TD_VAE(
     x_size=input_size,
@@ -42,15 +44,15 @@ optimizer = optim.Adam(tdvae.parameters(), lr=0.00005)
 tdvae.load_state_dict(checkpoint["model_state_dict"])
 optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-data_file = "mitocheck_compression10_2movies.pkl"
+data_file = "data/MNIST.pkl"
 with open(data_file, "rb") as file_handle:
-    mitocheck = pickle.load(file_handle)
+    MNIST = pickle.load(file_handle)
 
 tdvae.eval()
 tdvae = tdvae.cuda()
 
-data = Mitocheck_Dataset(mitocheck)
-batch_size = 512
+data = MNIST_Dataset(MNIST["train_image"], binary=False)
+
 data_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
 idx, images = next(enumerate(data_loader))
 images = images.cuda()

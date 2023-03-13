@@ -18,7 +18,7 @@ from prep_data import *
 
 
 #### load trained model
-checkpoint = torch.load("script/output_10/model_epoch_49.pt")
+checkpoint = torch.load("output_epochs/epoch_0.pt")
 input_size = 784
 processed_x_size = 784
 belief_state_size = 50
@@ -41,7 +41,7 @@ tdvae.load_state_dict(checkpoint["model_state_dict"])
 optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
 #### load dataset
-with open("script/MNIST.pkl", "rb") as file_handle:
+with open("data/MNIST.pkl", "rb") as file_handle:
     MNIST = pickle.load(file_handle)
 tdvae.eval()
 tdvae = tdvae.cuda()

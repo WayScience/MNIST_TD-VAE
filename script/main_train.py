@@ -116,7 +116,7 @@ with open(log_file, "w") as log_file_handle:
                     "optimizer_state_dict": optimizer.state_dict(),
                     "loss": loss,
                 },
-                f"./output_epochs/epoch_{epoch}.pt",
+                f"output_epochs/epoch_{epoch}.pt",
             )
 
 
