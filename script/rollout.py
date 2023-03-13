@@ -80,6 +80,6 @@ for i in range(batch_size):
         )
         axes.axis("off")
 
-#fig.savefig("./output/rollout_result.eps")
+# fig.savefig("./output/rollout_result.eps")
 plt.show()
 sys.exit()

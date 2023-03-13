@@ -88,12 +88,12 @@ with open(log_file, "w") as log_file_handle:
             t_1 = np.random.choice(time_constant_max)
             t_2 = t_1 + np.random.choice(time_jump_options)
             # Calculate loss function based on two time points
-            loss= tdvae.calculate_loss(t_1, t_2)
+            loss = tdvae.calculate_loss(t_1, t_2)
             # must clear out stored gradient
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
@@ -101,14 +101,13 @@ with open(log_file, "w") as log_file_handle:
                 file=log_file_handle,
                 flush=True,
             )
-           
+
             print(
                 "epoch: {:>4d}, idx: {:>4d}, loss: {:.2f}".format(
                     epoch, idx, loss.item()
                 )
             )
 
-     
         if (epoch) % 50 == 0:
             torch.save(
                 {
@@ -119,9 +118,9 @@ with open(log_file, "w") as log_file_handle:
                 },
                 f"./output_epochs/epoch_{epoch}.pt",
             )
-     
 
-'''
+
+"""
 # info about the model
 params = list(tdvae.parameters())
 for i in range(len(params)):
@@ -138,5 +137,4 @@ print(tdvae)
 summary(tdvae)
 summary(tdvae(1, 784))
 summary(tdvae, (60000, 784))
-'''
-
+"""
