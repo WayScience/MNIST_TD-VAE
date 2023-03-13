@@ -18,19 +18,30 @@ from prep_data import *
 
 
 #### load trained model
-checkpoint = torch.load("output/model_epoch_2899.pt")
+checkpoint = torch.load("output_epochs/epoch_0.pt")
 input_size = 784
 processed_x_size = 784
 belief_state_size = 50
 state_size = 8
-tdvae = TD_VAE(input_size, processed_x_size, belief_state_size, state_size)
+d_block_hidden_size = 50
+decoder_hidden_size = 200
+
+tdvae = TD_VAE(
+    x_size=input_size,
+    processed_x_size=processed_x_size,
+    b_size=belief_state_size,
+    z_size=state_size,
+    d_block_hidden_size=d_block_hidden_size,
+    decoder_hidden_size=decoder_hidden_size,
+)
+
 optimizer = optim.Adam(tdvae.parameters(), lr=0.0005)
 
 tdvae.load_state_dict(checkpoint["model_state_dict"])
 optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
 #### load dataset
-with open("MNIST.pkl", "rb") as file_handle:
+with open("data/MNIST.pkl", "rb") as file_handle:
     MNIST = pickle.load(file_handle)
 tdvae.eval()
 tdvae = tdvae.cuda()
@@ -69,6 +80,6 @@ for i in range(batch_size):
         )
         axes.axis("off")
 
-fig.savefig("./output/rollout_result.eps")
+# fig.savefig("./output/rollout_result.eps")
 plt.show()
 sys.exit()

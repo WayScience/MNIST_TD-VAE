@@ -12,7 +12,8 @@ import torch.nn as nn
 
 
 class DBlock(nn.Module):
-    """A basic building block for parameterizing a normal distribution.
+    """
+    A basic building block for parameterizing a normal distribution.
     It corresponds to the D operation in the reference Appendix.
 
     Returns a mean and log sigma for any arbitrary context X
@@ -42,6 +43,7 @@ class DBlock(nn.Module):
 
 
 class PreProcess(nn.Module):
+
     """
     The pre-process layer for MNIST image
     """
@@ -59,9 +61,11 @@ class PreProcess(nn.Module):
 
 
 class Decoder(nn.Module):
+
     """
     The decoder layer converting state to observation.
     Because the observation is MNIST image whose elements are values
+    between 0 and 1, the output of this layer are probabilities of
     between 0 and 1, the output of this layer are probabilities of
     elements being 1.
     """
@@ -83,13 +87,6 @@ class TD_VAE(nn.Module):
     """
     The full TD_VAE model.
 
-    -------------------
-    First, let's first go through some definitions which would help understanding what is going
-    on in the following code.
-    Belief: As the model is fed a sequence of observations, x_t, the model updates its belief
-        state, b_t, through an LSTM network. It is a deterministic function of x_t.
-
-    -------------------
     First, let's first go through some definitions which would help understanding what is going
     on in the following code.
 
@@ -98,12 +95,6 @@ class TD_VAE(nn.Module):
     State: The latent state variable, z.
     Observation: The observed variable, x.
 
-    -------------------
-    The TD_VAE contains several interconnected layers, which all have different purposes.
-    We provide more details on each layer below, but, in summary, the layers are as follows:
-
-
-    -------------------
     The TD_VAE contains several interconnected layers, which all have different purposes.
     We provide more details on each layer below, but, in summary, the layers are as follows:
 
@@ -118,7 +109,6 @@ class TD_VAE(nn.Module):
     6) The decoder network. This layer will learn how to reverse the compression process and convert z
         back to the original input dimensions X
 
-    -------------------
     The TD-VAE model learns by minimizing reconstruction loss (reconstructing compressed belief state
     back to original X dimensions) and mimizing two distinct KL divergence terms. To describe these terms,
     it is helpful to realize that there are three ways to arrive at a compressed representation z.
@@ -137,9 +127,12 @@ class TD_VAE(nn.Module):
 
             loss = ||X - decoder(P_B(X))|| + KL( P_B | q_s ) + KL( P_B | P_T )
 
-    -------------------
     We are primarily interested in two aspects of this model.
 
+    1) We would like to be able to predict future states of the world, perhaps from static images.
+    2) We would like to explore the encoded representation z formed from the belief state encoder.
+    We will compare z across different contexts, which will tell us how different contexts impact
+    behavior in the world over time.
     1) We would like to be able to predict future states of the world, perhaps from static images.
     2) We would like to explore the encoded representation z formed from the belief state encoder.
     We will compare z across different contexts, which will tell us how different contexts impact
@@ -155,6 +148,7 @@ class TD_VAE(nn.Module):
         d_block_hidden_size,
         decoder_hidden_size,
     ):
+
         super(TD_VAE, self).__init__()
         self.x_size = x_size
         self.processed_x_size = processed_x_size
@@ -302,6 +296,8 @@ class TD_VAE(nn.Module):
         self.x = images
 
         # Pre-precess image x
+
+        # Pre-precess image x
         self.processed_x = self.process_x(self.x)
 
         # Aggregate the belief b - the model only uses b in subsequent steps
@@ -347,9 +343,9 @@ class TD_VAE(nn.Module):
             This is a standard reconstruction term. We pass input data x through an encoder (belief network) to
             a lower dimensional compressed z. We then decode this z through a decoder to obtain the same input
             dimensions as X. We minimize the difference between this decoded X and the ground truth X. Importantly,
-            with this decoder we can now fully simulate new data in the original dimension. 
+            with this decoder we can now fully simulate new data in the original dimension.
 
-                This term fully enables data generation (original dimension).
+            This term fully enables data generation in the orginal input dimensions X
         """
 
         ############################
@@ -376,9 +372,12 @@ class TD_VAE(nn.Module):
             torch.cat((self.b[:, t2, :], z_time2_layer2), dim=-1)
         )
 
- 
         z_time2_layer1_epsilon = torch.randn_like(z_time2_layer1_mu)
 
+        z_time2_layer1 = (
+            z_time2_layer1_mu
+            + torch.exp(z_time2_layer1_logsigma) * z_time2_layer2_epsilon
+        )
         z_time2_layer1 = (
             z_time2_layer1_mu
             + torch.exp(z_time2_layer1_logsigma) * z_time2_layer2_epsilon
@@ -414,7 +413,6 @@ class TD_VAE(nn.Module):
             + torch.exp(z_time1_layer1_smoothing_logsigma)
             * z_time1_layer1_smoothing_epsilon
         )
-
         z_time1_smoothing = torch.cat(
             (z_time1_layer1_smoothing, z_time1_layer2_smoothing), dim=-1
         )
@@ -465,6 +463,7 @@ class TD_VAE(nn.Module):
         # 5) Minimize the difference between decoder and ground truth observation (reconstruction)
         #
         # We will walk through calculating each of these five components.
+
         ############################
 
         # 1) KL divergence between belief distribution at time 1 and smoothing distribution at time 1
@@ -511,7 +510,7 @@ class TD_VAE(nn.Module):
         # 3) KL divergence between belief distribution at time 2 and transition distribution at time 2
         # This is line 14 of Appendix D representing loss_time2_layer2 (log(P_B(z_time2)) - log(P_T(z_time2)))
         loss_kl_belief_transition_z_time2_layer2 = torch.sum(
-            -0.5 * z_time2_layer2_epsilon**2
+            -0.5 * z_time2_layer2_epsilon ** 2
             - 0.5
             * z_time2_layer2_epsilon.new_tensor(
                 2 * np.pi
@@ -536,7 +535,7 @@ class TD_VAE(nn.Module):
         # 4) KL divergence between belief distribution at time 2 and transition distribution at time 2
         # This is line 15 of Appendix D representing loss_time2_layer1 (log(P_B(z_time2)) - log(P_T(z_time2)))
         loss_kl_belief_transition_z_time2_layer1 = torch.sum(
-            -0.5 * z_time2_layer1_epsilon**2
+            -0.5 * z_time2_layer1_epsilon ** 2
             - 0.5 * z_time2_layer1_epsilon.new_tensor(2 * np.pi)
             - z_time2_layer1_logsigma,
             dim=-1,
@@ -571,6 +570,7 @@ class TD_VAE(nn.Module):
             + loss_kl_belief_transition_z_time2_layer1
             + reconstruction_loss
         )
+
         loss = torch.mean(loss)
 
         return loss
@@ -601,13 +601,14 @@ class TD_VAE(nn.Module):
                 predict_z_layer2_mu,
                 predict_z_layer2_logsigma,
             ) = self.transition_z_layer2(z)
+
             predict_z_layer2_epsilon = torch.randn_like(predict_z_layer2_mu)
+
             predict_z_layer2 = (
                 predict_z_layer2_mu
                 + torch.exp(predict_z_layer2_logsigma) * predict_z_layer2_epsilon
             )
-
-            predict_z_layer1_mu, predict_z_layer1_logsigma = self.l1_transition_z(
+            predict_z_layer1_mu, predict_z_layer1_logsigma = self.transition_z_layer1(
                 torch.cat((z, predict_z_layer2), dim=-1)
             )
             predict_z_layer1_epsilon = torch.randn_like(predict_z_layer1_mu)
@@ -622,7 +623,28 @@ class TD_VAE(nn.Module):
             predict_x = self.decoder_z_to_x(predict_z)
             rollout_x.append(predict_x)
 
-
             z = predict_z
 
-        return rollout_x
+        return torch.stack(rollout_x, dim=1)
+
+
+    def extract_latent_space(self, images, time):
+        z_values = []
+        # Preprocess images and pass through LSTM
+        self.forward(images)
+        for t in range(time):
+            # At time t1-1, we encode a state z based on belief at time t1-1
+            z_layer2_mu, z_layer2_logsigma = self.encoder_b_to_z_layer2(self.b[:, t, :])
+            z_layer2_epsilon = torch.randn_like(z_layer2_mu)
+            z_layer2 = z_layer2_mu + torch.exp(z_layer2_logsigma) * z_layer2_epsilon
+
+            z_layer1_mu, z_layer1_logsigma = self.encoder_b_to_z_layer1(
+                torch.cat((self.b[:, t, :], z_layer2), dim=-1)
+            )
+            z_layer1_epsilon = torch.randn_like(z_layer1_mu)
+            z_layer1 = z_layer1_mu + torch.exp(z_layer1_logsigma) * z_layer1_epsilon
+
+            z = torch.cat((z_layer1, z_layer2), dim=-1)
+            z_values.append(z.cpu().detach().numpy())
+
+        return z_values
