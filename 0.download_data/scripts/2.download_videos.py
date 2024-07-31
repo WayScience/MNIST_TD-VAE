@@ -66,7 +66,7 @@ for year in list_of_years:
 # In[4]:
 
 
-# parse the html from the dictionary
+# Parse HTML from the dictionary to obtain downloadable video links.
 list_of_links = []
 for year in reponses_dict:
     if reponses_dict[year].status_code != 200:
