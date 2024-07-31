@@ -121,9 +121,10 @@ for link in tqdm.tqdm(list_of_links):
         print(f"Error: {e}")
         continue
 
+    # sleep for a random amount of time to avoid getting blacklisted
     time.sleep(
         np.random.randint(1, 5)
-    )  # sleep for a random amount of time to avoid getting blacklisted
+    ) 
 
 
 # In[7]:
