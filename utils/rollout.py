@@ -98,6 +98,8 @@ def rollout_func(
     idx = images[0]
 
     ## calculate belief
+    # forward step in the model to generate the belief state and latent state
+    # we can grab the decoded jumpy prediction from the model after this step
     tdvae.forward(images)
 
     # assertions:

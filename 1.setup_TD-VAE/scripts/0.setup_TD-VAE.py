@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[8]:
+# In[1]:
 
 
+import logging
 import pathlib
 import pickle
 import sys
@@ -26,7 +27,17 @@ from model import TD_VAE, DBlock, Decoder, PreProcess
 from prep_data import MNIST_Dataset
 from rollout import rollout_func
 
-# In[9]:
+# In[2]:
+
+
+# set up logging
+logger = logging.getLogger(__name__)
+# make the log directory
+pathlib.Path("../log").mkdir(exist_ok=True)
+logging.basicConfig(filename="../log/training_log.log", level=logging.INFO)
+
+
+# In[3]:
 
 
 # set path to the MNIST images
@@ -37,7 +48,7 @@ log_path.mkdir(exist_ok=True)
 log_file_path = pathlib.Path("../log/loginfo.txt").resolve()
 
 
-# In[10]:
+# In[4]:
 
 
 with open(mnist_pickle_path, "rb") as file_handle:
@@ -48,7 +59,7 @@ print(MNIST.keys())
 MNIST["train_image"].shape
 
 
-# In[11]:
+# In[5]:
 
 
 # set the batch size
@@ -65,7 +76,7 @@ data_loader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
 # ## Hyperparameter optimization with Optuna
 
-# In[12]:
+# In[6]:
 
 
 # Build a TD-VAE model
@@ -85,8 +96,21 @@ state_size = 8  # from original paper and hyperparameter
 d_block_hidden_size = 50  # hyperparameter
 decoder_hidden_size = 200  # hyperparameter
 
+logger.info("Parameters set: ")
+logger.info(f"num_epochs: {num_epochs}")
+logger.info(f"learning_rate: {learning_rate}")
+logger.info(f"belief_state_size: {belief_state_size}")
+logger.info(f"state_size: {state_size}")
+logger.info(f"d_block_hidden_size: {d_block_hidden_size}")
+logger.info(f"decoder_hidden_size: {decoder_hidden_size}")
+logger.info(f"batch_size: {batch_size}")
+logger.info(f"input_size: {input_size}")
+logger.info(f"processed_x_size: {processed_x_size}")
+logger.info(f"time_constant_max: {time_constant_max}")
+logger.info(f"time_jump_options: {time_jump_options}")
 
-# In[13]:
+
+# In[7]:
 
 
 tdvae = TD_VAE(
@@ -100,10 +124,10 @@ tdvae = TD_VAE(
 tdvae = tdvae.cuda()
 # check device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
+logger.info(f"Device: {device}")
 
 
-# In[14]:
+# In[8]:
 
 
 optimizer = optim.Adam(tdvae.parameters(), lr=learning_rate)
@@ -112,88 +136,87 @@ model_save_dir = pathlib.Path("../output").resolve()
 model_save_dir.mkdir(parents=True, exist_ok=True)
 
 # Train the model
-with open(log_file_path, "w") as log_file_handle:
-    for epoch in range(num_epochs):
-        epoch_loss = 0
 
-        for batch, (idx, images) in enumerate(data_loader):
-            batch_counter = 0
-            batch_loss = 0
-            images = images["image"].cuda()
-            # Make a forward step of preprocessing and LSTM
-            tdvae.forward(images)
+for epoch in range(num_epochs):
+    epoch_loss = 0
 
-            # Randomly sample a time step and jumpy step
-            t_1 = np.random.choice(time_constant_max)
-            t_2 = t_1 + np.random.choice(time_jump_options)
+    for batch, (idx, images) in enumerate(data_loader):
+        batch_counter = 0
+        batch_loss = 0
+        images = images["image"].cuda()
+        # Make a forward step of preprocessing and LSTM
+        tdvae.forward(images)
 
-            # Calculate loss function based on two time points
-            loss = tdvae.calculate_loss(t_1, t_2)
-            if loss.isnan():
-                print("loss is nan")
-                pass
-            elif loss.isinf():
-                print("loss is inf")
-                pass
-            elif loss.item() == 0:
-                print("loss is zero")
-                pass
-            elif loss.item() < 0:
-                print("loss is negative")
-                pass
-            elif loss.item() > 0:
-                batch_counter += 1
-                batch_loss += loss.item()
-                # must clear out stored gradient
-                optimizer.zero_grad()
-                loss.backward()
-                # # clip said gradient
-                # torch.nn.utils.clip_grad_norm_(tdvae.parameters(), max_norm=1.0)
-                optimizer.step()
-        epoch_loss += batch_loss / batch_counter
-        print("epoch: {:>4d}, loss: {:.4f}".format(epoch, epoch_loss))
+        # Randomly sample a time step and jumpy step
+        t_1 = np.random.choice(time_constant_max)
+        t_2 = t_1 + np.random.choice(time_jump_options)
 
-        # save the model every 5 epochs and plot the jumpy reconstruction
-        if (epoch + 1) % 50 == 0:
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": tdvae.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": loss,
-                },
-                pathlib.Path(model_save_dir / f"model_epoch_{epoch}.pt").resolve(),
-            )
-            plot = rollout_func(
-                model_path=pathlib.Path(
-                    model_save_dir / f"model_epoch_{epoch}.pt"
-                ).resolve(),
-                input_size=input_size,
-                processed_x_size=processed_x_size,
-                belief_state_size=belief_state_size,
-                state_size=state_size,
-                d_block_hidden_size=d_block_hidden_size,
-                decoder_hidden_size=decoder_hidden_size,
-                mnist_pickle_path=mnist_pickle_path,
-                epoch=epoch,
-                batch_size=batch_size,
-                num_frames=20,
-                t1=16,
-                t2=19,
-            )
-    # save the final model
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": tdvae.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": loss,
-        },
-        pathlib.Path(model_save_dir / f"model_epoch_final.pt").resolve(),
-    )
+        # Calculate loss function based on two time points
+        loss = tdvae.calculate_loss(t_1, t_2)
+        if loss.isnan():
+            print("loss is nan")
+            pass
+        elif loss.isinf():
+            print("loss is inf")
+            pass
+        elif loss.item() == 0:
+            print("loss is zero")
+            pass
+        elif loss.item() < 0:
+            print("loss is negative")
+            pass
+        elif loss.item() > 0:
+            batch_counter += 1
+            batch_loss += loss.item()
+            # must clear out stored gradient
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    epoch_loss += batch_loss / batch_counter
+    logger.info(f"epoch: {epoch}, loss: {epoch_loss}")
+    print("epoch: {:>4d}, loss: {:.4f}".format(epoch, epoch_loss))
+
+    # save the model every 5 epochs and plot the jumpy reconstruction
+    if (epoch + 1) % 50 == 0:
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": tdvae.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "loss": loss,
+            },
+            pathlib.Path(model_save_dir / f"model_epoch_{epoch}.pt").resolve(),
+        )
+        plot = rollout_func(
+            model_path=pathlib.Path(
+                model_save_dir / f"model_epoch_{epoch}.pt"
+            ).resolve(),
+            input_size=input_size,
+            processed_x_size=processed_x_size,
+            belief_state_size=belief_state_size,
+            state_size=state_size,
+            d_block_hidden_size=d_block_hidden_size,
+            decoder_hidden_size=decoder_hidden_size,
+            mnist_pickle_path=mnist_pickle_path,
+            epoch=epoch,
+            batch_size=batch_size,
+            num_frames=20,
+            t1=16,
+            t2=19,
+        )
+# save the final model
+torch.save(
+    {
+        "epoch": epoch,
+        "model_state_dict": tdvae.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "loss": loss,
+    },
+    pathlib.Path(model_save_dir / f"model_epoch_final.pt").resolve(),
+)
 
 
-# In[15]:
+# In[9]:
 
 
 epoch = "final"

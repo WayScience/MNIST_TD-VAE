@@ -16,6 +16,8 @@ dependencies:
   - conda-forge::scikit-image
   - conda-forge::scikit-learn
   - conda-forge::opencv
+  - conda-forge::arrow
+  - conda-forge::pyarrow
   - pip:
     - 'transformers[torch]'
     - mnist
