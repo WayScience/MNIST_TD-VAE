@@ -1,6 +1,7 @@
 repos:
+  # Update the pre-commit hooks
 -   repo: https://gitlab.com/vojko.pribudic.foss/pre-commit-update
-    rev: v0.3.3post1  # Insert the latest tag here
+    rev: v0.7.0       # Insert the latest tag here
     hooks:
     -   id: pre-commit-update
         args: [--exclude, black, --keep, isort]
@@ -21,7 +22,7 @@ repos:
         language_version: python3.10
 
 -   repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.8.7
+    rev: 1.9.1
     hooks:
     -   id: nbqa-isort
         additional_dependencies: [isort==5.6.4]
@@ -29,13 +30,13 @@ repos:
 
   # remove unused imports
 -   repo: https://github.com/hadialqattan/pycln.git
-    rev: v2.4.0
+    rev: v2.5.0
     hooks:
     -   id: pycln
 
   # additional hooks found with in the pre-commit lib
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
     -   id: trailing-whitespace # removes trailing white spaces
     -   id: mixed-line-ending # removes mixed end of line
